@@ -9,6 +9,7 @@ import { UpdatePokemonDto } from './dto/update-pokemon.dto';
 import { isValidObjectId, Model } from 'mongoose';
 import { Pokemon } from './entities/pokemon.entity';
 import { InjectModel } from '@nestjs/mongoose';
+import { log } from 'console';
 
 @Injectable()
 export class PokemonService {
@@ -22,17 +23,7 @@ export class PokemonService {
       const pokemon = await this.pokemonModel.create(createPokemonDto);
       return pokemon;
     } catch (error) {
-      console.log(error);
-      if (error instanceof Error && 'code' in error && error.code === 11000) {
-        throw new BadRequestException(
-          `Pokemon exists in db ${JSON.stringify((error as any).keyValue)}`,
-        );
-      }
-
-      console.log(error);
-      throw new InternalServerErrorException(
-        `Can't create Pokemon - Check server log`,
-      );
+      this.handleExceptions(error);
     }
   }
 
@@ -67,11 +58,40 @@ export class PokemonService {
     return pokemon;
   }
 
-  update(id: number, updatePokemonDto: UpdatePokemonDto) {
-    return updatePokemonDto;
+  async update(term: string, updatePokemonDto: UpdatePokemonDto) {
+    const pokemon = await this.findOne(term);
+    try {
+      if (updatePokemonDto.name)
+        updatePokemonDto.name = updatePokemonDto.name.toLocaleLowerCase();
+
+      /*const updatePokemon = await this.pokemonModel.findByIdAndUpdate(
+        pokemon._id,
+        updatePokemonDto,
+        { new: true },
+      );*/
+
+      await pokemon.updateOne(updatePokemonDto, { new: true });
+      // return updatePokemon;
+      return { ...pokemon.toJSON(), ...updatePokemonDto };
+    } catch (error) {
+      this.handleExceptions(error);
+    }
   }
 
   remove(id: number) {
     return `This action removes a #${id} pokemon`;
+  }
+
+  private handleExceptions(error: any) {
+    if (error instanceof Error && 'code' in error && error.code === 11000) {
+      throw new BadRequestException(
+        `Pokemon exists in db ${JSON.stringify((error as any).keyValue)}`,
+      );
+    }
+
+    console.log(error);
+    throw new InternalServerErrorException(
+      `Can't create Pokemon - Check server log`,
+    );
   }
 }
